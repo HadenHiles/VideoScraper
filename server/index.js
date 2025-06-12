@@ -4,7 +4,7 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const path = require('path');
 const { pipeline } = require('stream');
-const { execFile } = require('child_process');
+const { execFile, spawn } = require('child_process');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -75,24 +75,34 @@ app.post('/api/videos', async (req, res) => {
 app.get('/api/download', async (req, res) => {
     const { videoUrl, filename } = req.query;
     if (!videoUrl) return res.status(400).json({ error: 'No videoUrl provided' });
+    // Use yt-dlp to download and merge video+audio, then stream to user
     try {
-        const response = await axios({
-            url: videoUrl,
-            method: 'GET',
-            responseType: 'stream',
-        });
-        // Determine filename
-        let name = filename || path.basename(videoUrl.split('?')[0]);
-        // Try to get extension from content-type if not present
-        if (!/\.[a-zA-Z0-9]+$/.test(name) && response.headers['content-type']) {
-            const ext = response.headers['content-type'].split('/')[1].split(';')[0];
-            name += `.${ext}`;
+        let name = filename || path.basename((videoUrl.split('?')[0]));
+        if (!/\.[a-zA-Z0-9]+$/.test(name)) {
+            name += '.mp4';
         }
         res.setHeader('Content-Disposition', `attachment; filename="${name}"`);
-        res.setHeader('Content-Type', response.headers['content-type'] || 'application/octet-stream');
-        pipeline(response.data, res, (err) => {
-            if (err) {
-                res.status(500).end('Error streaming video');
+        res.setHeader('Content-Type', 'video/mp4');
+        // yt-dlp command: bestvideo+bestaudio, merge, output to stdout
+        const ytdlp = spawn('python', [
+            '-m', 'yt_dlp',
+            '-f', 'bestvideo+bestaudio/best',
+            '-o', '-', // output to stdout
+            '--merge-output-format', 'mp4',
+            decodeURIComponent(videoUrl)
+        ]);
+        ytdlp.stdout.pipe(res);
+        ytdlp.stderr.on('data', (data) => {
+            console.error(`[yt-dlp download]`, data.toString());
+        });
+        ytdlp.on('error', (err) => {
+            console.error(`[yt-dlp spawn error]`, err);
+            if (!res.headersSent) res.status(500).end('Error running yt-dlp');
+        });
+        ytdlp.on('close', (code) => {
+            if (code !== 0) {
+                console.error(`[yt-dlp] exited with code ${code}`);
+                if (!res.headersSent) res.status(500).end('yt-dlp failed');
             }
         });
     } catch (err) {

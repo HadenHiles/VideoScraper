@@ -320,24 +320,30 @@ function App() {
 
         >Select a video to download:</h2> <div className="video-list-masonry"> {
           videos.map((v) => {
-            const meta = videoMeta[v] || { aspect: 16 / 9 };
+            const meta = videoMeta[v] || { aspect: 16 / 9, width: 16, height: 9 };
             // Portrait: aspect < 1, Landscape: aspect >= 1
             const isPortrait = meta.aspect < 1;
+            // Calculate container style for aspect ratio
+            const containerStyle = isPortrait
+              ? { width: '100%', maxWidth: 320, aspectRatio: `${meta.width} / ${meta.height}` }
+              : { width: '100%', aspectRatio: `${meta.width} / ${meta.height}` };
             return (
               <div
                 key={v}
                 className={`video-card${selected === v ? ' selected' : ''} ${isPortrait ? 'portrait' : 'landscape'}`}
                 onClick={() => setSelected(v)}
-                style={{ cursor: 'pointer', aspectRatio: `${meta.aspect}` }}
+                style={{ ...containerStyle, cursor: 'pointer' }}
               >
-                <video src={v} controls style={{ width: '100%', aspectRatio: meta.aspect }} />
+                <video src={v} controls style={{ width: '100%', height: '100%', objectFit: 'contain', aspectRatio: `${meta.width} / ${meta.height}` }} />
                 <div className="filename">{getFilename(v)}</div>
-                <button
-                  style={{ width: '100%', marginTop: 6 }}
-                  onClick={e => { e.stopPropagation(); setSelected(v); downloadVideo(v); }}
+                <a
+                  href={`${API_BASE}/download?videoUrl=${encodeURIComponent(v)}&filename=${encodeURIComponent(getFilename(v))}`}
+                  download={getFilename(v)}
+                  style={{ width: '100%', marginTop: 6, display: 'inline-block', textAlign: 'center', textDecoration: 'none' }}
+                  onClick={e => e.stopPropagation()}
                 >
-                  Download
-                </button>
+                  <button style={{ width: '100%' }}>Download</button>
+                </a>
               </div>
             );
           })}
