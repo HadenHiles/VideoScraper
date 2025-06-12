@@ -6,11 +6,15 @@ const path = require('path');
 const { pipeline } = require('stream');
 const { execFile, spawn } = require('child_process');
 
+// --- Puppeteer backup route ---
+const puppeteerBackup = require('./puppeteer-backup');
+
 const app = express();
 const PORT = process.env.PORT || 4000;
 
 app.use(cors());
 app.use(express.json());
+app.use('/api', puppeteerBackup);
 
 // Fetch video links from a given URL
 app.post('/api/videos', async (req, res) => {
@@ -110,24 +114,21 @@ app.get('/api/download', async (req, res) => {
     }
 });
 
-// Proxy for backup video services to avoid CORS
+// Enhance /api/proxy-backup to support GET and POST, and return raw text for HTML scraping
 app.post('/api/proxy-backup', async (req, res) => {
     const { service, payload, method = 'POST' } = req.body;
     try {
         const axiosConfig = {
-            method,
+            method: payload.method || method,
             url: payload.url,
             headers: payload.headers || {},
             data: payload.body || undefined,
             responseType: 'text',
+            maxRedirects: 5,
+            validateStatus: () => true,
         };
         const response = await axios(axiosConfig);
-        // Try to parse JSON, fallback to text
-        let data = response.data;
-        try {
-            data = typeof data === 'string' ? JSON.parse(data) : data;
-        } catch { }
-        res.json(data);
+        res.send(response.data);
     } catch (err) {
         console.error(`[Proxy Backup] Error for ${service}:`, err.message);
         res.status(500).json({ error: 'Proxy backup failed', details: err.message });
