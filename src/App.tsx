@@ -92,7 +92,7 @@ async function fetchBackup(url: string): Promise<string[]> {
     const res = await fetch(`${API_BASE}/puppeteer-backup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url }),
+      body: JSON.stringify({ url }), // Add debug: true for non-headless mode
     });
     if (!res.ok) throw new Error('Puppeteer backup failed');
     const data = await res.json();

@@ -8,12 +8,13 @@ const router = express.Router();
 
 // POST /api/puppeteer-backup { url }
 router.post('/puppeteer-backup', async (req, res) => {
-    const { url } = req.body;
+    const { url, debug } = req.body;
+    const debugMode = debug === true || req.query.debug === 'true';
     if (!url) return res.status(400).json({ error: 'No URL provided' });
     let browser;
     try {
         browser = await puppeteer.launch({
-            headless: true,
+            headless: !debugMode,
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
@@ -30,10 +31,17 @@ router.post('/puppeteer-backup', async (req, res) => {
         await page.setExtraHTTPHeaders({
             'Accept-Language': 'en-US,en;q=0.9',
         });
-        // Optionally, set cookies or other headers here if needed
+        if (debugMode) {
+            page.on('console', msg => console.log('[Puppeteer Console]', msg.text()));
+            page.on('requestfailed', req => console.warn('[Puppeteer Request Failed]', req.url(), req.failure()));
+            page.on('response', resp => {
+                if (!resp.ok()) console.warn('[Puppeteer Bad Response]', resp.url(), resp.status());
+            });
+        }
         await page.goto(url, { waitUntil: 'networkidle2', timeout: 40000 });
-        // Wait for videos to appear (if any)
+        if (debugMode) console.log('[Puppeteer] Page loaded:', url);
         await page.waitForTimeout(5000);
+        if (debugMode) console.log('[Puppeteer] Scraping video links...');
         // Scrape all video sources and downloadable links
         const videos = await page.evaluate(() => {
             const found = [];
@@ -50,6 +58,7 @@ router.post('/puppeteer-backup', async (req, res) => {
             });
             return Array.from(new Set(found));
         });
+        if (debugMode) console.log('[Puppeteer] Found videos:', videos);
         res.json({ videos });
     } catch (err) {
         console.error('[Puppeteer Backup Error]', err);
