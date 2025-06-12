@@ -1,0 +1,13 @@
+{
+    "version": "2.0.0",
+    "compounds": [
+        {
+            "label": "Start Fullstack (Frontend + Backend)",
+            "dependsOn": [
+                "Start Frontend (Vite)",
+                "Start Backend (Express)"
+            ],
+            "dependsOrder": "parallel"
+        }
+    ]
+}

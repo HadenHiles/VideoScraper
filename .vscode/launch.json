@@ -1,0 +1,30 @@
+{
+  "version": "0.2.0",
+  "compounds": [
+    {
+      "name": "Debug Fullstack (Frontend + Backend)",
+      "configurations": ["Debug Frontend (Vite)", "Debug Backend (Express)"]
+    }
+  ],
+  "configurations": [
+    {
+      "type": "chrome",
+      "request": "launch",
+      "name": "Debug Frontend (Vite)",
+      "url": "http://localhost:5173",
+      "webRoot": "${workspaceFolder}/src"
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Debug Backend (Express)",
+      "cwd": "${workspaceFolder}/server",
+      "program": "${workspaceFolder}/server/index.js",
+      "runtimeExecutable": "node",
+      "console": "integratedTerminal",
+      "env": {
+        "NODE_ENV": "development"
+      }
+    }
+  ]
+}
