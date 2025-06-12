@@ -15,7 +15,10 @@ app.use(express.json());
 // Fetch video links from a given URL
 app.post('/api/videos', async (req, res) => {
     const { url } = req.body;
-    if (!url) return res.status(400).json({ error: 'No URL provided' });
+    if (!url) {
+        console.warn('[API] No URL provided in request body');
+        return res.status(400).json({ error: 'No URL provided' });
+    }
     try {
         const response = await axios.get(url);
         const $ = cheerio.load(response.data);
@@ -33,8 +36,10 @@ app.post('/api/videos', async (req, res) => {
         let uniqueLinks = Array.from(new Set(videoLinks));
         if (uniqueLinks.length === 0) {
             // Fallback to yt-dlp for complex sites using Python -m pip
+            console.log(`[API] No direct video links found for ${url}, falling back to yt-dlp...`);
             execFile('python', ['-m', 'yt_dlp', '-j', url], { maxBuffer: 1024 * 1024 * 10 }, (err, stdout, stderr) => {
                 if (err) {
+                    console.error(`[yt-dlp] Error for ${url}:`, stderr || err.message);
                     return res.status(500).json({ error: 'yt-dlp failed', details: stderr || err.message });
                 }
                 try {
@@ -47,9 +52,13 @@ app.post('/api/videos', async (req, res) => {
                     } else if (info.formats) {
                         urls = info.formats.map(f => f.url).filter(Boolean);
                     }
-                    if (urls.length === 0) return res.status(404).json({ error: 'No videos found (yt-dlp)' });
+                    if (urls.length === 0) {
+                        console.warn(`[yt-dlp] No videos found for ${url}`);
+                        return res.status(404).json({ error: 'No videos found (yt-dlp)' });
+                    }
                     res.json({ videos: urls });
                 } catch (e) {
+                    console.error(`[yt-dlp] Failed to parse output for ${url}:`, e.message);
                     res.status(500).json({ error: 'Failed to parse yt-dlp output', details: e.message });
                 }
             });
@@ -57,6 +66,7 @@ app.post('/api/videos', async (req, res) => {
             res.json({ videos: uniqueLinks });
         }
     } catch (err) {
+        console.error(`[API] Failed to fetch videos for ${url}:`, err.message);
         res.status(500).json({ error: 'Failed to fetch videos', details: err.message });
     }
 });

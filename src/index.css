@@ -8,7 +8,8 @@ body {
   min-height: 100vh;
 }
 
-h1, h2 {
+h1,
+h2 {
   font-family: 'Montserrat', Arial, sans-serif;
   font-weight: 700;
   letter-spacing: 1px;
@@ -24,8 +25,9 @@ input[type="text"] {
   transition: border 0.2s;
   font-family: 'Fira Mono', monospace;
   background: #fff;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
 }
+
 input[type="text"]:focus {
   border: 1.5px solid #4f8cff;
 }
@@ -40,16 +42,18 @@ button {
   font-family: 'Montserrat', Arial, sans-serif;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(76,99,255,0.08);
+  box-shadow: 0 2px 8px rgba(76, 99, 255, 0.08);
   transition: background 0.2s, box-shadow 0.2s;
 }
+
 button:disabled {
   background: #bfc0c0;
   cursor: not-allowed;
 }
+
 button:hover:not(:disabled) {
   background: linear-gradient(90deg, #6c63ff 0%, #4f8cff 100%);
-  box-shadow: 0 4px 16px rgba(76,99,255,0.12);
+  box-shadow: 0 4px 16px rgba(76, 99, 255, 0.12);
 }
 
 .video-list {
@@ -59,28 +63,52 @@ button:hover:not(:disabled) {
   margin-top: 24px;
 }
 
+.video-list-masonry {
+  column-count: 2;
+  column-gap: 24px;
+  margin-top: 24px;
+}
+
+@media (max-width: 900px) {
+  .video-list-masonry {
+    column-count: 1;
+    column-gap: 0;
+  }
+}
+
 .video-card {
+  display: inline-block;
+  width: 100%;
+  margin-bottom: 24px;
   background: #fff;
   border-radius: 16px;
-  box-shadow: 0 2px 16px rgba(34,34,59,0.07);
+  box-shadow: 0 2px 16px rgba(34, 34, 59, 0.07);
   padding: 18px 16px 14px 16px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
   transition: box-shadow 0.2s, border 0.2s;
   border: 2px solid transparent;
+  vertical-align: top;
 }
+
 .video-card.selected {
   border: 2px solid #4f8cff;
-  box-shadow: 0 4px 24px rgba(76,99,255,0.13);
+  box-shadow: 0 4px 24px rgba(76, 99, 255, 0.13);
+}
+
+.video-card.landscape {
+  aspect-ratio: 16/9;
+}
+
+.video-card.portrait {
+  aspect-ratio: 9/16;
 }
 
 .video-card video {
-  max-width: 100%;
-  max-height: 180px;
+  width: 100%;
+  height: auto;
   border-radius: 8px;
   margin-bottom: 10px;
   background: #22223b;
+  display: block;
 }
 
 .video-card .filename {
@@ -97,6 +125,7 @@ button:hover:not(:disabled) {
     grid-template-columns: 1fr;
     gap: 16px;
   }
+
   .video-card {
     padding: 12px 8px 10px 8px;
   }

@@ -1,11 +1,7 @@
-import React,
-  {
-  useState
-}
-
-from 'react';
+import React, { useState, useEffect } from 'react';
 
 const API_BASE='http://localhost:4000/api';
+const SNAPINSTA_API = 'https://snapinsta.to/api/ajaxSearch';
 
 // Helper to guess filename from URL
 const getFilename=(videoUrl: string)=> {
@@ -27,38 +23,29 @@ const getFilename=(videoUrl: string)=> {
   }
 }
 
-;
-
 // Remove duplicate videos by file name, file size, and video duration (using loaded metadata)
 async function dedupeVideosWithMeta(videos: string[]): Promise<string[]> {
-  const metaList = await Promise.all(videos.map(async (v) => {
-    return new Promise<{url: string, size?: number, duration?: number}>(resolve => {
+  const metaList = await Promise.all(videos.map((v) => {
+    return new Promise<{url: string, size?: number, duration?: number, playable: boolean}>(resolve => {
       const video = document.createElement('video');
       video.preload = 'metadata';
       video.src = v;
       video.onloadedmetadata = () => {
-        resolve({ url: v, duration: Math.round(video.duration) });
+        resolve({ url: v, duration: Math.round(video.duration), playable: !!video.duration && !isNaN(video.duration) });
       };
-      video.onerror = () => resolve({ url: v });
-      // Try to extract file size from query string if present
-      const sizeMatch = v.match(/[?&]size=(\d+)/);
-      if (sizeMatch) {
-        (resolve as any).size = Number(sizeMatch[1]);
-      }
+      video.onerror = () => resolve({ url: v, playable: false });
     });
   }));
-  const seen = new Set<string>();
-  const result: string[] = [];
+  const lastMap = new Map<string, string>();
   for (const meta of metaList) {
     const sizeMatch = meta.url.match(/[?&]size=(\d+)/);
     const size = sizeMatch ? sizeMatch[1] : '';
     const key = `${size}|${meta.duration || ''}`;
-    if (!seen.has(key)) {
-      seen.add(key);
-      result.push(meta.url);
+    if (meta.playable) {
+      lastMap.set(key, meta.url);
     }
   }
-  return result;
+  return Array.from(lastMap.values());
 }
 
 // Remove duplicate videos by file name, file size, and video duration (if available)
@@ -94,6 +81,39 @@ function dedupeVideos(videos: string[]): string[] {
   });
 }
 
+// Helper to get video aspect ratio
+function getAspectRatio(width: number, height: number) {
+  if (!width || !height) return 1;
+  return width / height;
+}
+
+async function fetchFromSnapInsta(url: string): Promise<string[]> {
+  try {
+    const formData = new URLSearchParams();
+    formData.append('q', url);
+    formData.append('t', 'media');
+    const res = await fetch(SNAPINSTA_API, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: formData.toString(),
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    // SnapInsta returns HTML in data.data, parse for video URLs
+    const html = data.data || '';
+    // Use DOMParser for HTML parsing
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    const links = Array.from(doc.querySelectorAll('a[href$=".mp4"],a[href$=".webm"],a[href$=".ogg"]'));
+    return links.map(a => (a as HTMLAnchorElement).href);
+  } catch {
+    return [];
+  }
+}
+
 function App() {
   const [url,
   setUrl]=useState('');
@@ -105,25 +125,49 @@ function App() {
   setError]=useState('');
   const [selected,
   setSelected]=useState<string | null>(null);
+  const [ignoreDuplicates,
+  setIgnoreDuplicates]=useState(true);
+  const [videoMeta, setVideoMeta] = useState<Record<string, { width: number; height: number; aspect: number }>>({});
+  const [showSnapInsta, setShowSnapInsta] = useState(false);
 
-  const fetchVideos = async () => {
+  const fetchVideos = async (useSnapInsta = false) => {
     setLoading(true);
     setError('');
     setVideos([]);
     setSelected(null);
+    let foundVideos: string[] = [];
     try {
-      const res = await fetch(`${API_BASE}/videos`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url }),
-      });
-      const data = await res.json();
-      if (data.videos) {
-        const deduped = await dedupeVideosWithMeta(data.videos);
-        setVideos(deduped);
-      } else setError('No videos found.');
+      if (useSnapInsta) {
+        foundVideos = await fetchFromSnapInsta(url);
+        if (!foundVideos.length) setError('Backup method could not find any videos for this URL.');
+      } else {
+        const res = await fetch(`${API_BASE}/videos`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url }),
+        });
+        if (!res.ok) {
+          setError(`Server error: ${res.status} ${res.statusText}`);
+          setShowSnapInsta(true);
+          setLoading(false);
+          return;
+        }
+        const data = await res.json();
+        if (data.videos) {
+          foundVideos = ignoreDuplicates ? await dedupeVideosWithMeta(data.videos) : data.videos;
+          if (!foundVideos.length) {
+            setError('No playable videos found for this URL. Some sites may block direct downloads.');
+            setShowSnapInsta(true);
+          }
+        } else {
+          setError('No videos found.');
+          setShowSnapInsta(true);
+        }
+      }
+      setVideos(foundVideos);
     } catch (e: any) {
       setError('Failed to fetch videos.');
+      setShowSnapInsta(true);
     }
     setLoading(false);
   };
@@ -149,9 +193,33 @@ function App() {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-  }
+  };
 
-  ;
+  // When videos change, load their metadata for aspect ratio
+  useEffect(() => {
+    if (!videos.length) return;
+    const meta: Record<string, { width: number; height: number; aspect: number }> = {};
+    let loaded = 0;
+    videos.forEach((v) => {
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.src = v;
+      video.onloadedmetadata = () => {
+        meta[v] = {
+          width: video.videoWidth,
+          height: video.videoHeight,
+          aspect: getAspectRatio(video.videoWidth, video.videoHeight),
+        };
+        loaded++;
+        if (loaded === videos.length) setVideoMeta({ ...meta });
+      };
+      video.onerror = () => {
+        meta[v] = { width: 16, height: 9, aspect: 16 / 9 };
+        loaded++;
+        if (loaded === videos.length) setVideoMeta({ ...meta });
+      };
+    });
+  }, [videos]);
 
   return (<div style= {
         {
@@ -171,7 +239,7 @@ function App() {
       }
     }
 
-    > Paste a URL to find and download videos. Modern, responsive, and easy to use ! </p> <div style= {
+    > Paste a URL to find and download videos! </p> <div style= {
         {
         display: 'flex', justifyContent: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 24
       }
@@ -195,19 +263,41 @@ function App() {
       }
     }
 
-    /> <button onClick= {
-      fetchVideos
+    /> <button
+      onClick={() => fetchVideos()}
+      disabled={loading || !url}
+    >
+      {loading ? 'Loading...' : 'Fetch Videos'}
+    </button> </div> <div style= {
+        {
+        display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 16, marginBottom: 12
+      }
     }
 
-    disabled= {
-      loading || !url
+    > <input type="checkbox"
+    id="ignore-duplicates"
+    checked= {
+      ignoreDuplicates
     }
 
-    > {
-      loading ? 'Loading...' : 'Fetch Videos'
+    onChange= {
+      e=> setIgnoreDuplicates(e.target.checked)
     }
 
-    </button> </div> {
+    style= {
+        {
+        marginRight: 6
+      }
+    }
+
+    /> <label htmlFor="ignore-duplicates" style= {
+        {
+        cursor: 'pointer', color: '#22223b', fontSize: '1rem'
+      }
+    }
+
+    > Ignore duplicates (by file size & duration)
+    </label> </div> {
       error && <div style= {
           {
           color: 'red', marginTop: 16, textAlign: 'center'
@@ -228,59 +318,39 @@ function App() {
           }
         }
 
-        >Select a video to download:</h2> <div className="video-list"> {
-          videos.map((v)=> (<div key= {
-                v
-              }
-
-              className= {
-                `video-card$ {
-                  selected===v ? ' selected' : ''
-                }
-
-                `
-              }
-
-              onClick= {
-                ()=> setSelected(v)
-              }
-
-              style= {
-                  {
-                  cursor: 'pointer'
-                }
-              }
-
-              > <video src= {
-                v
-              }
-
-              controls style= {
-                  {
-                  width: '100%'
-                }
-              }
-
-              /> <div className="filename"> {
-                getFilename(v)
-              }
-
-              </div> <button style= {
-                  {
-                  width: '100%', marginTop: 6
-                }
-              }
-
-              onClick= {
-                e=> {
-                  e.stopPropagation(); setSelected(v); downloadVideo(v);
-                }
-              }
-
-              > Download </button> </div>))
-        }
-
+        >Select a video to download:</h2> <div className="video-list-masonry"> {
+          videos.map((v) => {
+            const meta = videoMeta[v] || { aspect: 16 / 9 };
+            // Portrait: aspect < 1, Landscape: aspect >= 1
+            const isPortrait = meta.aspect < 1;
+            return (
+              <div
+                key={v}
+                className={`video-card${selected === v ? ' selected' : ''} ${isPortrait ? 'portrait' : 'landscape'}`}
+                onClick={() => setSelected(v)}
+                style={{ cursor: 'pointer', aspectRatio: `${meta.aspect}` }}
+              >
+                <video src={v} controls style={{ width: '100%', aspectRatio: meta.aspect }} />
+                <div className="filename">{getFilename(v)}</div>
+                <button
+                  style={{ width: '100%', marginTop: 6 }}
+                  onClick={e => { e.stopPropagation(); setSelected(v); downloadVideo(v); }}
+                >
+                  Download
+                </button>
+              </div>
+            );
+          })}
         </div> </div>)
+    } {
+      showSnapInsta && (
+        <button
+          style={{ background: '#ff5e62', color: '#fff', fontWeight: 700, border: 'none', borderRadius: 8, padding: '10px 18px', cursor: 'pointer' }}
+          onClick={() => { fetchVideos(true); }}
+        >
+          Try SnapInsta Secret Method
+        </button>
+      )
     }
 
     </div>);
