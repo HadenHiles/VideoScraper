@@ -1,48 +1,84 @@
-# Video Scraper
+# VideoScraper
 
-A web application to scrape and download video files from any URL. Built with Vite + React + TypeScript frontend and a Node.js/Express backend for proxying and video streaming.
+VideoScraper is a modern web application that allows users to easily download video files from any URL. It features a Vite + React + TypeScript frontend for a fast and interactive user experience, and a Node.js/Express backend that handles CORS, proxying, and video file streaming.
 
 ## Features
 
-- Input a URL to scrape for video files
-- Visually select a video to preview and download
-- Download videos directly to your machine (CORS handled by backend)
+- **User-friendly Interface:** Input a URL, visually select video files, and choose where to save them.
+- **Fast Frontend:** Built with Vite, React, and TypeScript for optimal performance and maintainability.
+- **Secure Backend:** Node.js/Express server handles CORS and streams video files securely.
+- **Cross-Origin Support:** Download videos from sites that restrict direct downloads.
 
-## Getting Started
+## Installation
 
-### 1. Install dependencies
+### Prerequisites
 
+- [Node.js](https://nodejs.org/) (v16 or higher recommended)
+- [npm](https://www.npmjs.com/)
+
+### Clone the Repository
+
+```sh
+git clone https://github.com/yourusername/VideoScraper.git
+cd VideoScraper
 ```
+
+### Install Frontend Dependencies
+
+```sh
 npm install
-cd server && npm install
 ```
 
-### 2. Start the backend server
+### Install Backend Dependencies
 
+```sh
+cd server
+npm install
+cd ..
 ```
+
+## Usage
+
+### Start the Backend Server
+
+```sh
 cd server
 npm start
 ```
 
-### 3. Start the frontend (in project root)
+### Start the Frontend (Vite)
 
-```
+```sh
 npm run dev
 ```
 
-- Frontend: http://localhost:5173
-- Backend: http://localhost:4000
+### Access the App
+
+Open your browser and go to [http://localhost:5173](http://localhost:5173)
+
+## How It Works
+
+1. **Enter a URL:** Paste the page URL containing the video.
+2. **Select Video:** The app fetches and lists available video files for download.
+3. **Download:** Choose a video and select where to save it. The backend streams the file to your browser.
 
 ## Project Structure
 
-- `/src` — React frontend
-- `/server` — Express backend for proxying and video streaming
+```
+VideoScraper/
+├── src/            # React frontend source code
+├── server/         # Node.js/Express backend
+├── public/         # Static assets
+├── package.json    # Frontend dependencies
+├── README.md       # Project documentation
+└── ...
+```
 
 ## Notes
 
 - The backend is required to bypass CORS and stream video files.
 - The frontend proxies `/api` requests to the backend during development.
 
----
+## License
 
-MIT License
+MIT
