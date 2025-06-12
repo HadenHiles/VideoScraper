@@ -110,6 +110,30 @@ app.get('/api/download', async (req, res) => {
     }
 });
 
+// Proxy for backup video services to avoid CORS
+app.post('/api/proxy-backup', async (req, res) => {
+    const { service, payload, method = 'POST' } = req.body;
+    try {
+        const axiosConfig = {
+            method,
+            url: payload.url,
+            headers: payload.headers || {},
+            data: payload.body || undefined,
+            responseType: 'text',
+        };
+        const response = await axios(axiosConfig);
+        // Try to parse JSON, fallback to text
+        let data = response.data;
+        try {
+            data = typeof data === 'string' ? JSON.parse(data) : data;
+        } catch { }
+        res.json(data);
+    } catch (err) {
+        console.error(`[Proxy Backup] Error for ${service}:`, err.message);
+        res.status(500).json({ error: 'Proxy backup failed', details: err.message });
+    }
+});
+
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
 });

@@ -87,24 +87,30 @@ function getAspectRatio(width: number, height: number) {
   return width / height;
 }
 
+// Helper to proxy backup requests through backend
+async function proxyBackupRequest(service: string, payload: any, method: 'POST' | 'GET' = 'POST') {
+  const res = await fetch(`${API_BASE}/proxy-backup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ service, payload, method }),
+  });
+  if (!res.ok) throw new Error('Proxy request failed');
+  const data = await res.json();
+  return data;
+}
+
 async function fetchFromSnapInsta(url: string): Promise<string[]> {
   try {
-    const formData = new URLSearchParams();
-    formData.append('q', url);
-    formData.append('t', 'media');
-    const res = await fetch(SNAPINSTA_API, {
-      method: 'POST',
+    const payload = {
+      url: 'https://snapinsta.to/api/ajaxSearch',
+      body: `q=${encodeURIComponent(url)}&t=media`,
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
         'X-Requested-With': 'XMLHttpRequest',
-      },
-      body: formData.toString(),
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
-    // SnapInsta returns HTML in data.data, parse for video URLs
+      }
+    };
+    const data = await proxyBackupRequest('snapinsta', payload);
     const html = data.data || '';
-    // Use DOMParser for HTML parsing
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
     const links = Array.from(doc.querySelectorAll('a[href$=".mp4"],a[href$=".webm"],a[href$=".ogg"]'));
@@ -112,6 +118,62 @@ async function fetchFromSnapInsta(url: string): Promise<string[]> {
   } catch {
     return [];
   }
+}
+
+async function fetchFromTikTok(url: string): Promise<string[]> {
+  try {
+    const payload = {
+      url: 'https://ssstik.io/abc',
+      body: `id=${encodeURIComponent(url)}&locale=en`,
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        'X-Requested-With': 'XMLHttpRequest',
+      }
+    };
+    const html = (await proxyBackupRequest('ssstik', payload)).data || '';
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    const links = Array.from(doc.querySelectorAll('a[href$=".mp4"]'));
+    return links.map(a => (a as HTMLAnchorElement).href);
+  } catch {
+    return [];
+  }
+}
+
+async function fetchFromYouTube(url: string): Promise<string[]> {
+  try {
+    const payload = {
+      url: 'https://yt1d.com/api/ajaxSearch',
+      body: `q=${encodeURIComponent(url)}&t=media`,
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        'X-Requested-With': 'XMLHttpRequest',
+      }
+    };
+    const data = await proxyBackupRequest('yt1d', payload);
+    const html = data.data || '';
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    const links = Array.from(doc.querySelectorAll('a[href$=".mp4"],a[href$=".webm"],a[href$=".ogg"]'));
+    return links.map(a => (a as HTMLAnchorElement).href);
+  } catch {
+    return [];
+  }
+}
+
+async function fetchBackup(url: string): Promise<string[]> {
+  const platform = getPlatform(url);
+  if (platform === 'instagram') return fetchFromSnapInsta(url);
+  if (platform === 'tiktok') return fetchFromTikTok(url);
+  if (platform === 'youtube') return fetchFromYouTube(url);
+  return [];
+}
+
+function getPlatform(url: string) {
+  if (/instagram\.com/.test(url)) return 'instagram';
+  if (/tiktok\.com/.test(url)) return 'tiktok';
+  if (/youtube\.com|youtu\.be/.test(url)) return 'youtube';
+  return 'other';
 }
 
 function App() {
@@ -129,16 +191,18 @@ function App() {
   setIgnoreDuplicates]=useState(true);
   const [videoMeta, setVideoMeta] = useState<Record<string, { width: number; height: number; aspect: number }>>({});
   const [showSnapInsta, setShowSnapInsta] = useState(false);
+  const [detailedError, setDetailedError] = useState<string | null>(null);
 
-  const fetchVideos = async (useSnapInsta = false) => {
+  const fetchVideos = async (useBackup = false) => {
     setLoading(true);
     setError('');
+    setDetailedError(null);
     setVideos([]);
     setSelected(null);
     let foundVideos: string[] = [];
     try {
-      if (useSnapInsta) {
-        foundVideos = await fetchFromSnapInsta(url);
+      if (useBackup) {
+        foundVideos = await fetchBackup(url);
         if (!foundVideos.length) setError('Backup method could not find any videos for this URL.');
       } else {
         const res = await fetch(`${API_BASE}/videos`, {
@@ -147,7 +211,13 @@ function App() {
           body: JSON.stringify({ url }),
         });
         if (!res.ok) {
+          let details = '';
+          try {
+            const errData = await res.json();
+            details = errData.details || errData.error || '';
+          } catch {}
           setError(`Server error: ${res.status} ${res.statusText}`);
+          setDetailedError(details);
           setShowSnapInsta(true);
           setLoading(false);
           return;
@@ -167,6 +237,7 @@ function App() {
       setVideos(foundVideos);
     } catch (e: any) {
       setError('Failed to fetch videos.');
+      setDetailedError(e?.message || String(e));
       setShowSnapInsta(true);
     }
     setLoading(false);
@@ -221,7 +292,9 @@ function App() {
     });
   }, [videos]);
 
-  return (<div style= {
+  return (
+    <div>
+      <div style= {
         {
         maxWidth: 900, margin: '2rem auto', fontFamily: 'Montserrat, Arial, sans-serif', padding: '0 1rem'
       }
@@ -350,16 +423,40 @@ function App() {
         </div> </div>)
     } {
       showSnapInsta && (
-        <button
-          style={{ background: '#ff5e62', color: '#fff', fontWeight: 700, border: 'none', borderRadius: 8, padding: '10px 18px', cursor: 'pointer' }}
-          onClick={() => { fetchVideos(true); }}
-        >
-          Try SnapInsta Secret Method
-        </button>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', margin: '24px 0' }}>
+          <button
+            style={{ background: '#ff5e62', color: '#fff', fontWeight: 700, border: 'none', borderRadius: 8, padding: '12px 28px', cursor: 'pointer', fontSize: '1.1rem' }}
+            onClick={() => { fetchVideos(true); }}
+          >
+            Try backup method
+          </button>
+        </div>
       )
     }
 
-    </div>);
+      {detailedError && (
+        <div style={{
+          position: 'fixed',
+          bottom: 24,
+          right: 24,
+          background: '#fff',
+          color: '#b00020',
+          border: '1.5px solid #b00020',
+          borderRadius: 8,
+          padding: '16px 20px',
+          boxShadow: '0 2px 12px rgba(0,0,0,0.13)',
+          zIndex: 9999,
+          minWidth: 260,
+          maxWidth: 400,
+          fontSize: '0.98rem',
+        }}>
+          <strong>Error Details:</strong>
+          <div style={{ marginTop: 6, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{detailedError}</div>
+          <button style={{ marginTop: 10, float: 'right', background: '#b00020', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 12px', cursor: 'pointer' }} onClick={() => setDetailedError(null)}>Close</button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default App;
