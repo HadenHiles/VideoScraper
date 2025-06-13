@@ -5,16 +5,27 @@ const cheerio = require('cheerio');
 const path = require('path');
 const { pipeline } = require('stream');
 const { execFile, spawn } = require('child_process');
+const fs = require('fs');
 
 // --- Browser backup route (Playwright first, Puppeteer fallback) ---
 const browserBackup = require('./browser-backup');
 
 const app = express();
-const PORT = process.env.PORT || 4000;
+const PORT = process.env.PORT || 6969;
 
 app.use(cors());
 app.use(express.json());
 app.use('/api', browserBackup);
+
+// Serve frontend static files
+const distPath = path.join(__dirname, '..', 'dist');
+if (fs.existsSync(distPath)) {
+    app.use(express.static(distPath));
+    // Serve index.html for any non-API route
+    app.get(/^\/(?!api).*/, (req, res) => {
+        res.sendFile(path.join(distPath, 'index.html'));
+    });
+}
 
 // Fetch video links from a given URL
 app.post('/api/videos', async (req, res) => {

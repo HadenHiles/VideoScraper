@@ -1,0 +1,13 @@
+version: '3.8'
+services:
+  videoscraper:
+    build: .
+    container_name: videoscraper
+    restart: unless-stopped
+    ports:
+      - "6969:6969"
+    environment:
+      - NODE_ENV=production
+    # Uncomment if you want to mount local code for live development
+    # volumes:
+    #   - .:/app

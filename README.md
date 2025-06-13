@@ -72,6 +72,37 @@ VideoScraper/
 - The frontend proxies `/api` requests to the backend during development.
 - For TikTok and similar sites, you may need a working residential proxy for reliable extraction. See server logs for proxy usage.
 
+## Docker Deployment
+
+### Build and Run with Docker Compose
+
+1. Build and start the container:
+
+   ```sh
+   docker-compose up --build -d
+   ```
+
+   - The app will auto-restart on reboot or crash (`unless-stopped`).
+   - Backend API: http://localhost:4000
+   - Frontend: http://localhost:5173
+
+2. To stop the container:
+
+   ```sh
+   docker-compose down
+   ```
+
+3. To view logs:
+   ```sh
+   docker-compose logs -f
+   ```
+
+### Notes
+
+- You need Docker and Docker Compose installed.
+- The container will auto-start on reboot (unless you manually stop it).
+- You can deploy this on any server (DigitalOcean, AWS, etc.) with Docker.
+
 ## License
 
 MIT

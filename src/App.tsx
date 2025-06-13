@@ -92,7 +92,7 @@ async function fetchBackup(url: string, debug = false): Promise<string[]> {
     const res = await fetch(`${API_BASE}/browser-backup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url, debug, proxy: "http://127.0.0.1:49037" }),
+      body: JSON.stringify({ url, debug }),
     });
     if (!res.ok) throw new Error('Browser backup failed');
     const data = await res.json();
