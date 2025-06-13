@@ -8,6 +8,9 @@ VideoScraper is a modern web application that allows users to easily download vi
 - **Fast Frontend:** Built with Vite, React, and TypeScript for optimal performance and maintainability.
 - **Secure Backend:** Node.js/Express server handles CORS and streams video files securely.
 - **Cross-Origin Support:** Download videos from sites that restrict direct downloads.
+- **Advanced Extraction:** Automatic fallback to browser-based extraction (Playwright/Puppeteer) for sites like TikTok, YouTube, Instagram, etc.
+- **Proxy Support:** Optionally use a proxy for TikTok and other sites that block scraping.
+- **Fun Loading Animation:** Enjoy a playful loader while videos are being extracted.
 
 ## Installation
 
@@ -23,34 +26,23 @@ git clone https://github.com/yourusername/VideoScraper.git
 cd VideoScraper
 ```
 
-### Install Frontend Dependencies
+### Install All Dependencies
 
 ```sh
 npm install
-```
-
-### Install Backend Dependencies
-
-```sh
-cd server
-npm install
-cd ..
+cd server && npm install && cd ..
 ```
 
 ## Usage
 
-### Start the Backend Server
+### Start Everything (Frontend & Backend)
 
 ```sh
-cd server
 npm start
 ```
 
-### Start the Frontend (Vite)
-
-```sh
-npm run dev
-```
+- This will launch both the backend (on port 4000) and the frontend (Vite, on port 5173) in a single terminal window.
+- You will see logs prefixed with `[backend]` and `[frontend]`.
 
 ### Access the App
 
@@ -68,8 +60,8 @@ Open your browser and go to [http://localhost:5173](http://localhost:5173)
 VideoScraper/
 ├── src/            # React frontend source code
 ├── server/         # Node.js/Express backend
-├── public/         # Static assets
-├── package.json    # Frontend dependencies
+├── start.js        # Script to run both frontend and backend
+├── package.json    # Project dependencies and scripts
 ├── README.md       # Project documentation
 └── ...
 ```
@@ -78,6 +70,7 @@ VideoScraper/
 
 - The backend is required to bypass CORS and stream video files.
 - The frontend proxies `/api` requests to the backend during development.
+- For TikTok and similar sites, you may need a working residential proxy for reliable extraction. See server logs for proxy usage.
 
 ## License
 
