@@ -18,6 +18,7 @@ VideoScraper is a modern web application that allows users to easily download vi
 
 - [Node.js](https://nodejs.org/) (v16 or higher recommended)
 - [npm](https://www.npmjs.com/)
+- [Docker](https://www.docker.com/) and [Docker Compose](https://docs.docker.com/compose/) (for containerized setup)
 
 ### Clone the Repository
 
@@ -26,7 +27,7 @@ git clone https://github.com/yourusername/VideoScraper.git
 cd VideoScraper
 ```
 
-### Install All Dependencies
+### Install All Dependencies (for local/dev)
 
 ```sh
 npm install
@@ -35,42 +36,17 @@ cd server && npm install && cd ..
 
 ## Usage
 
-### Start Everything (Frontend & Backend)
+### Start Everything (Frontend & Backend, Local Dev)
 
 ```sh
-npm start
+npm run build
+cd server && npm start
 ```
 
-- This will launch both the backend (on port 4000) and the frontend (Vite, on port 5173) in a single terminal window.
-- You will see logs prefixed with `[backend]` and `[frontend]`.
+- The backend will run on port **6969** and serve the built frontend.
+- Access the app at [http://localhost:6969](http://localhost:6969)
 
-### Access the App
-
-Open your browser and go to [http://localhost:5173](http://localhost:5173)
-
-## How It Works
-
-1. **Enter a URL:** Paste the page URL containing the video.
-2. **Select Video:** The app fetches and lists available video files for download.
-3. **Download:** Choose a video and select where to save it. The backend streams the file to your browser.
-
-## Project Structure
-
-```
-VideoScraper/
-├── src/            # React frontend source code
-├── server/         # Node.js/Express backend
-├── start.js        # Script to run both frontend and backend
-├── package.json    # Project dependencies and scripts
-├── README.md       # Project documentation
-└── ...
-```
-
-## Notes
-
-- The backend is required to bypass CORS and stream video files.
-- The frontend proxies `/api` requests to the backend during development.
-- For TikTok and similar sites, you may need a working residential proxy for reliable extraction. See server logs for proxy usage.
+---
 
 ## Docker Deployment
 
@@ -83,8 +59,7 @@ VideoScraper/
    ```
 
    - The app will auto-restart on reboot or crash (`unless-stopped`).
-   - Backend API: http://localhost:4000
-   - Frontend: http://localhost:5173
+   - The backend and frontend are both served from: [http://localhost:6969](http://localhost:6969)
 
 2. To stop the container:
 
@@ -97,11 +72,38 @@ VideoScraper/
    docker-compose logs -f
    ```
 
-### Notes
+### Custom Domain (Optional)
 
-- You need Docker and Docker Compose installed.
-- The container will auto-start on reboot (unless you manually stop it).
-- You can deploy this on any server (DigitalOcean, AWS, etc.) with Docker.
+- To use a custom domain like `vid.scraper`, add this to your hosts file:
+  ```
+  127.0.0.1   vid.scraper
+  ```
+- Then access the app at [http://vid.scraper:6969](http://vid.scraper:6969)
+- **Note:** The hosts file cannot map a domain to a port. You must still specify `:6969` in the URL unless you use a reverse proxy (see below).
+
+### Reverse Proxy (Optional)
+
+- To use just `http://vid.scraper` (without the port), set up a local reverse proxy (e.g., Nginx) to forward port 80 to 6969.
+
+## Project Structure
+
+```
+VideoScraper/
+├── src/            # React frontend source code
+├── server/         # Node.js/Express backend
+├── dist/           # Built frontend (served by backend)
+├── Dockerfile      # Docker build instructions
+├── docker-compose.yml # Docker Compose config
+├── package.json    # Project dependencies and scripts
+├── README.md       # Project documentation
+└── ...
+```
+
+## Notes
+
+- The backend is required to bypass CORS and stream video files.
+- The backend now serves the built frontend for all non-API routes.
+- For TikTok and similar sites, you may need a working residential proxy for reliable extraction. See server logs for proxy usage.
 
 ## License
 
