@@ -1,5 +1,11 @@
 # Use an official Node.js image as the base
-FROM node:18
+FROM node:20-slim
+
+# Install Python3, pip, and yt-dlp system-wide
+RUN apt-get update && \
+    apt-get install -y python3 python3-pip ffmpeg && \
+    pip3 install --no-cache-dir yt-dlp && \
+    rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
@@ -19,7 +25,7 @@ COPY . .
 RUN npm run build
 
 # Expose backend port
-EXPOSE 4000
+EXPOSE 6969
 
 # Start both backend and serve built frontend
-CMD ["node", "start.js"]
+CMD ["node", "server/index.js"]
