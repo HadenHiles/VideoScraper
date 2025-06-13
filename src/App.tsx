@@ -92,7 +92,7 @@ async function fetchBackup(url: string, debug = false): Promise<string[]> {
     const res = await fetch(`${API_BASE}/browser-backup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url, debug }),
+      body: JSON.stringify({ url, debug, proxy: "http://127.0.0.1:49037" }),
     });
     if (!res.ok) throw new Error('Browser backup failed');
     const data = await res.json();
@@ -336,22 +336,24 @@ function App() {
     } {
       loading && (
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 32 }}>
-          <div style={{ width: 220, margin: '18px 0' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div className="progress-bar-outer" style={{ flex: 1, height: 8, background: '#e0e0e0', borderRadius: 6, overflow: 'hidden' }}>
-                <div
-                  className="progress-bar-inner"
-                  style={{
-                    width: progress === 'backup' ? '100%' : '50%',
-                    height: 8,
-                    background: progress === 'backup' ? '#ff5e62' : '#4f8cff',
-                    transition: 'width 0.5s',
-                  }}
-                />
-              </div>
-              <span style={{ fontSize: 13, color: '#555', minWidth: 70 }}>
-                {progress === 'basic' ? 'Searching...' : progress === 'backup' ? 'Trying backup...' : ''}
-              </span>
+          <div style={{ width: 220, margin: '18px 0', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            {/* Fun animated loader */}
+            <div style={{ marginBottom: 10 }}>
+              <svg width="60" height="60" viewBox="0 0 60 60">
+                <circle cx="30" cy="30" r="24" stroke="#4f8cff" strokeWidth="6" fill="none" strokeDasharray="120" strokeDashoffset="60">
+                  <animateTransform attributeName="transform" type="rotate" from="0 30 30" to="360 30 30" dur="1s" repeatCount="indefinite" />
+                </circle>
+                <circle cx="30" cy="30" r="12" fill="#ff5e62">
+                  <animate attributeName="r" values="12;18;12" dur="1.2s" repeatCount="indefinite" />
+                  <animate attributeName="opacity" values="1;0.5;1" dur="1.2s" repeatCount="indefinite" />
+                </circle>
+              </svg>
+            </div>
+            <div style={{ fontSize: 15, color: '#555', fontWeight: 500, textAlign: 'center' }}>
+              {progress === 'basic' ? 'Searching for videos...' : progress === 'backup' ? 'Trying advanced extraction...' : 'Loading...'}
+            </div>
+            <div style={{ fontSize: 12, color: '#888', marginTop: 4, textAlign: 'center' }}>
+              This may take a few seconds for some sites.<br />Please do not close this tab.
             </div>
           </div>
         </div>

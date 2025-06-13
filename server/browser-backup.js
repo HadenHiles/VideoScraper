@@ -12,9 +12,9 @@ function getRandomUserAgent() {
 
 const router = express.Router();
 
-// POST /api/browser-backup { url, debug }
+// POST /api/browser-backup { url, debug, proxy }
 router.post('/browser-backup', async (req, res) => {
-    const { url, debug } = req.body;
+    const { url, debug, proxy } = req.body;
     const debugMode = debug === true || req.query.debug === 'true';
     if (!url) {
         console.log('[BrowserBackup] No URL provided');
@@ -22,15 +22,27 @@ router.post('/browser-backup', async (req, res) => {
     }
     const isTikTok = /tiktok\.com\//i.test(url);
     let browser;
+    const launchOptions = { headless: !debugMode };
+    if (proxy) {
+        launchOptions.proxy = { server: proxy };
+        console.log('[BrowserBackup] Using proxy:', proxy);
+    } else {
+        console.log('[BrowserBackup] No proxy provided.');
+    }
     if (isTikTok) {
         try {
             console.log('[BrowserBackup] [TikTok] Launching Playwright...');
-            browser = await chromium.launch({ headless: !debugMode });
+            browser = await chromium.launch(launchOptions);
             const userAgent = getRandomUserAgent();
             const context = await browser.newContext({
                 userAgent,
                 viewport: { width: 1280, height: 800 },
                 locale: 'en-US',
+                timezoneId: 'America/New_York',
+                extraHTTPHeaders: {
+                    'Accept-Language': 'en-US,en;q=0.9',
+                    'Referer': 'https://www.tiktok.com/',
+                },
             });
             const page = await context.newPage();
             if (debugMode) {
@@ -42,18 +54,44 @@ router.post('/browser-backup', async (req, res) => {
                 console.log('[Playwright] Using user-agent:', userAgent);
             }
             console.log('[Playwright] Navigating to:', url);
-            await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 40000 });
+            let navSuccess = false;
+            let navError = null;
+            for (let attempt = 1; attempt <= 2; attempt++) {
+                try {
+                    await Promise.race([
+                        page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 }),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('Navigation timeout (custom)')), 65000))
+                    ]);
+                    navSuccess = true;
+                    break;
+                } catch (err) {
+                    navError = err;
+                    console.warn(`[Playwright][TikTok] Navigation attempt ${attempt} failed:`, err.message);
+                    if (attempt === 1) {
+                        await page.waitForTimeout(2000);
+                    }
+                }
+            }
+            if (!navSuccess) {
+                await browser.close();
+                return res.status(504).json({ error: 'TikTok page navigation failed', details: navError?.message || 'Unknown error' });
+            }
             if (debugMode) console.log('[Playwright] Page loaded:', url);
+            await page.waitForTimeout(3000);
             // Try to extract from JSON blob
             let videos = [];
             try {
-                await page.waitForSelector('script#\\__UNIVERSAL_DATA_FOR_REHYDRATION__', { timeout: 10000 });
+                if (debugMode) console.log('[Playwright] Waiting for TikTok JSON blob...');
+                await Promise.race([
+                    page.waitForSelector('script#\\__UNIVERSAL_DATA_FOR_REHYDRATION__', { timeout: 10000 }),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Selector wait timeout')), 12000))
+                ]);
                 const json = await page.$eval('script#\\__UNIVERSAL_DATA_FOR_REHYDRATION__', el => el.textContent);
                 if (json) {
+                    if (debugMode) console.log('[Playwright] TikTok JSON blob found.');
                     const data = JSON.parse(json);
                     const video = data?.__DEFAULT_SCOPE__?.['webapp.video-detail']?.itemInfo?.itemStruct?.video;
                     if (video) {
-                        // Collect all available qualities
                         if (video.bitrateInfo && Array.isArray(video.bitrateInfo)) {
                             video.bitrateInfo.forEach(b => {
                                 if (b.PlayAddr && b.PlayAddr.UrlList) {
@@ -61,9 +99,7 @@ router.post('/browser-backup', async (req, res) => {
                                 }
                             });
                         }
-                        // Fallback to playAddr
                         if (video.playAddr) videos.push(video.playAddr);
-                        // Fallback to downloadAddr
                         if (video.downloadAddr) videos.push(video.downloadAddr);
                     }
                 }
@@ -83,8 +119,9 @@ router.post('/browser-backup', async (req, res) => {
                 });
                 // Simulate play if needed
                 try {
+                    if (debugMode) console.log('[Playwright] Attempting to click video to trigger playback...');
                     await page.click('video');
-                } catch (e) { }
+                } catch (e) { if (debugMode) console.warn('[Playwright] Video click failed:', e.message); }
                 await page.waitForTimeout(3000);
                 videos = Array.from(found);
             }

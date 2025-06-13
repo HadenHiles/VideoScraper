@@ -19,6 +19,7 @@ app.use('/api', browserBackup);
 // Fetch video links from a given URL
 app.post('/api/videos', async (req, res) => {
     const { url } = req.body;
+    console.log('[API] /api/videos received url:', url);
     if (!url) {
         console.warn('[API] No URL provided in request body');
         return res.status(400).json({ error: 'No URL provided' });
