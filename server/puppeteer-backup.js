@@ -1,10 +1,15 @@
 const express = require('express');
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+const userAgents = require('./userAgents');
 
 puppeteer.use(StealthPlugin());
 
 const router = express.Router();
+
+function getRandomUserAgent() {
+    return userAgents[Math.floor(Math.random() * userAgents.length)];
+}
 
 // POST /api/puppeteer-backup { url }
 router.post('/puppeteer-backup', async (req, res) => {
@@ -24,10 +29,9 @@ router.post('/puppeteer-backup', async (req, res) => {
             defaultViewport: { width: 1280, height: 800 },
         });
         const page = await browser.newPage();
-        // Set a realistic user-agent
-        await page.setUserAgent(
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
-        );
+        // Rotate user-agent
+        const userAgent = getRandomUserAgent();
+        await page.setUserAgent(userAgent);
         await page.setExtraHTTPHeaders({
             'Accept-Language': 'en-US,en;q=0.9',
         });
@@ -37,6 +41,7 @@ router.post('/puppeteer-backup', async (req, res) => {
             page.on('response', resp => {
                 if (!resp.ok()) console.warn('[Puppeteer Bad Response]', resp.url(), resp.status());
             });
+            console.log('[Puppeteer] Using user-agent:', userAgent);
         }
         await page.goto(url, { waitUntil: 'networkidle2', timeout: 40000 });
         if (debugMode) console.log('[Puppeteer] Page loaded:', url);

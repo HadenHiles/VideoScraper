@@ -6,15 +6,15 @@ const path = require('path');
 const { pipeline } = require('stream');
 const { execFile, spawn } = require('child_process');
 
-// --- Puppeteer backup route ---
-const puppeteerBackup = require('./puppeteer-backup');
+// --- Browser backup route (Playwright first, Puppeteer fallback) ---
+const browserBackup = require('./browser-backup');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
 
 app.use(cors());
 app.use(express.json());
-app.use('/api', puppeteerBackup);
+app.use('/api', browserBackup);
 
 // Fetch video links from a given URL
 app.post('/api/videos', async (req, res) => {

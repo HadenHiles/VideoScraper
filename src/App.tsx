@@ -86,95 +86,85 @@ function getAspectRatio(width: number, height: number) {
   return width / height;
 }
 
-// Remove all old backup service helpers and replace with Puppeteer backup
-async function fetchBackup(url: string): Promise<string[]> {
+// Update backup method to use /api/browser-backup instead of /api/puppeteer-backup
+async function fetchBackup(url: string, debug = false): Promise<string[]> {
   try {
-    const res = await fetch(`${API_BASE}/puppeteer-backup`, {
+    const res = await fetch(`${API_BASE}/browser-backup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url }), // Add debug: true for non-headless mode
+      body: JSON.stringify({ url, debug }),
     });
-    if (!res.ok) throw new Error('Puppeteer backup failed');
+    if (!res.ok) throw new Error('Browser backup failed');
     const data = await res.json();
     return data.videos || [];
   } catch (e: any) {
-    throw new Error(e?.message || 'Puppeteer backup failed');
+    throw new Error(e?.message || 'Browser backup failed');
   }
 }
 
 function App() {
-  const [url,
-  setUrl]=useState('');
-  const [videos,
-  setVideos]=useState<string[]>([]);
-  const [loading,
-  setLoading]=useState(false);
-  const [error,
-  setError]=useState('');
-  const [selected,
-  setSelected]=useState<string | null>(null);
-  const [ignoreDuplicates,
-  setIgnoreDuplicates]=useState(true);
+  const [url, setUrl] = useState('');
+  const [videos, setVideos] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState<'basic' | 'backup' | null>(null);
+  const [error, setError] = useState('');
+  const [selected, setSelected] = useState<string | null>(null);
+  const [ignoreDuplicates, setIgnoreDuplicates] = useState(true);
   const [videoMeta, setVideoMeta] = useState<Record<string, { width: number; height: number; aspect: number }>>({});
-  const [showSnapInsta, setShowSnapInsta] = useState(false);
   const [detailedError, setDetailedError] = useState<string | null>(null);
 
-  const fetchVideos = async (useBackup = false) => {
+  const fetchVideos = async () => {
     setLoading(true);
+    setProgress('basic');
     setError('');
     setDetailedError(null);
     setVideos([]);
     setSelected(null);
     let foundVideos: string[] = [];
     try {
-      if (useBackup) {
+      // Try basic method first
+      const res = await fetch(`${API_BASE}/videos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      if (!res.ok) {
+        let details = '';
+        try {
+          const errData = await res.json();
+          details = errData.details || errData.error || '';
+        } catch {}
+        setError(`Server error: ${res.status} ${res.statusText}`);
+        setDetailedError(details);
+        setLoading(false);
+        setProgress(null);
+        return;
+      }
+      const data = await res.json();
+      if (data.videos) {
+        foundVideos = ignoreDuplicates ? await dedupeVideosWithMeta(data.videos) : data.videos;
+      }
+      // If no videos found, try backup automatically
+      if (!foundVideos.length) {
+        setProgress('backup');
         try {
           foundVideos = await fetchBackup(url);
           if (!foundVideos.length) {
-            setError('Backup method could not find any videos for this URL.');
+            setError('No playable videos found for this URL. Some sites may block direct downloads.');
             setDetailedError('No video links were found by the backup service.');
           }
         } catch (e: any) {
           setError('Backup method failed.');
           setDetailedError(e?.message || String(e));
         }
-      } else {
-        const res = await fetch(`${API_BASE}/videos`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url }),
-        });
-        if (!res.ok) {
-          let details = '';
-          try {
-            const errData = await res.json();
-            details = errData.details || errData.error || '';
-          } catch {}
-          setError(`Server error: ${res.status} ${res.statusText}`);
-          setDetailedError(details);
-          setShowSnapInsta(true);
-          setLoading(false);
-          return;
-        }
-        const data = await res.json();
-        if (data.videos) {
-          foundVideos = ignoreDuplicates ? await dedupeVideosWithMeta(data.videos) : data.videos;
-          if (!foundVideos.length) {
-            setError('No playable videos found for this URL. Some sites may block direct downloads.');
-            setShowSnapInsta(true);
-          }
-        } else {
-          setError('No videos found.');
-          setShowSnapInsta(true);
-        }
       }
       setVideos(foundVideos);
     } catch (e: any) {
       setError('Failed to fetch videos.');
       setDetailedError(e?.message || String(e));
-      setShowSnapInsta(true);
     }
     setLoading(false);
+    setProgress(null);
   };
 
   const downloadVideo=(videoUrl: string)=> {
@@ -344,18 +334,28 @@ function App() {
           })}
         </div> </div>)
     } {
-      showSnapInsta && (
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', margin: '24px 0' }}>
-          <button
-            style={{ background: '#ff5e62', color: '#fff', fontWeight: 700, border: 'none', borderRadius: 8, padding: '12px 28px', cursor: 'pointer', fontSize: '1.1rem' }}
-            onClick={() => { fetchVideos(true); }}
-          >
-            Try backup method
-          </button>
+      loading && (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 32 }}>
+          <div style={{ width: 220, margin: '18px 0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div className="progress-bar-outer" style={{ flex: 1, height: 8, background: '#e0e0e0', borderRadius: 6, overflow: 'hidden' }}>
+                <div
+                  className="progress-bar-inner"
+                  style={{
+                    width: progress === 'backup' ? '100%' : '50%',
+                    height: 8,
+                    background: progress === 'backup' ? '#ff5e62' : '#4f8cff',
+                    transition: 'width 0.5s',
+                  }}
+                />
+              </div>
+              <span style={{ fontSize: 13, color: '#555', minWidth: 70 }}>
+                {progress === 'basic' ? 'Searching...' : progress === 'backup' ? 'Trying backup...' : ''}
+              </span>
+            </div>
+          </div>
         </div>
-      )
-    }
-
+      )}
       {detailedError && (
         <div style={{
           position: 'fixed',
