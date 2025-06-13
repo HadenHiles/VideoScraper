@@ -1,9 +1,11 @@
 # Use an official Node.js image as the base
-FROM node:20-slim
+FROM node:18-slim
 
-# Install Python3, pip, and yt-dlp system-wide
+# Install Python3, pip, ffmpeg, and the latest yt-dlp from GitHub
 RUN apt-get update && \
-    apt-get install -y python3 python3-pip ffmpeg yt-dlp && \
+    apt-get install -y python3 python3-pip ffmpeg curl && \
+    curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && \
+    chmod a+rx /usr/local/bin/yt-dlp && \
     rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -26,5 +28,5 @@ RUN npm run build
 # Expose backend port
 EXPOSE 6969
 
-# Start both backend and serve built frontend
+# Start backend (serves built frontend)
 CMD ["node", "server/index.js"]

@@ -53,7 +53,7 @@ app.post('/api/videos', async (req, res) => {
         if (uniqueLinks.length === 0) {
             // Fallback to yt-dlp for complex sites using Python -m pip
             console.log(`[API] No direct video links found for ${url}, falling back to yt-dlp...`);
-            execFile('python', ['-m', 'yt_dlp', '-j', url], { maxBuffer: 1024 * 1024 * 10 }, (err, stdout, stderr) => {
+            execFile('yt-dlp', ['-j', url], { maxBuffer: 1024 * 1024 * 10 }, (err, stdout, stderr) => {
                 if (err) {
                     console.error(`[yt-dlp] Error for ${url}:`, stderr || err.message);
                     return res.status(500).json({ error: 'yt-dlp failed', details: stderr || err.message });
@@ -100,8 +100,7 @@ app.get('/api/download', async (req, res) => {
         res.setHeader('Content-Disposition', `attachment; filename="${name}"`);
         res.setHeader('Content-Type', 'video/mp4');
         // yt-dlp command: bestvideo+bestaudio, merge, output to stdout
-        const ytdlp = spawn('python', [
-            '-m', 'yt_dlp',
+        const ytdlp = spawn('yt-dlp', [
             '-f', 'bestvideo+bestaudio/best',
             '-o', '-', // output to stdout
             '--merge-output-format', 'mp4',
