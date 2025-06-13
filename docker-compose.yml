@@ -8,6 +8,11 @@ services:
       - "6969:6969"
     environment:
       - NODE_ENV=production
+    deploy:
+      resources:
+        limits:
+          cpus: '1.00'
+          memory: 2G
     # Uncomment if you want to mount local code for live development
     # volumes:
     #   - .:/app
